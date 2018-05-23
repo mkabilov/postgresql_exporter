@@ -9,5 +9,11 @@ test:
     labels:
         datname: "test"
     queryFiles:
-        - "basic.yaml"
-        - "pgsettings.yaml"
+        - "basic.yaml":
+            labels:
+                l1: "v1"
+                l2: "v2"
+        - "pgsettings.yaml":
+            labels:
+                label1: "value1"
+                label2: "value2"

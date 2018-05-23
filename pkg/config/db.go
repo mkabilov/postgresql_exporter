@@ -2,14 +2,14 @@ package config
 
 import (
 	"fmt"
-	"os"
 	"time"
-
-	"gopkg.in/yaml.v2"
 )
 
 // applicationName describes postgresql application name
-const applicationName = "pg_prometheus_exporter"
+const (
+	applicationName = "pg_prometheus_exporter"
+	labelsParamKey  = "labels"
+)
 
 // DbConfigInterface describes DbConfig methods
 type DbConfigInterface interface {
@@ -20,6 +20,11 @@ type DbConfigInterface interface {
 	GetLabels() map[string]string
 }
 
+type QueryFile struct {
+	Filename string
+	Labels   map[string]string
+}
+
 // DbConfig describes database to get metrics from
 type DbConfig struct {
 	Host                 string            `yaml:"host"`
@@ -28,7 +33,7 @@ type DbConfig struct {
 	Password             string            `yaml:"password"`
 	Dbname               string            `yaml:"dbname"`
 	Sslmode              string            `yaml:"sslmode"`
-	QueryFiles           []string          `yaml:"queryFiles"`
+	QueryFiles           []QueryFile       `yaml:"queryFiles"`
 	Labels               map[string]string `yaml:"labels"`
 	Workers              int               `yaml:"workers"`
 	SkipVersionDetection bool              `yaml:"skipVersionDetection"`
@@ -37,29 +42,62 @@ type DbConfig struct {
 	queries []Query
 }
 
+func (q *QueryFile) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	res := QueryFile{
+		Labels: make(map[string]string),
+	}
+	var val interface{}
+
+	err := unmarshal(&val)
+	if err != nil {
+		return fmt.Errorf("could not unmarshal: %v", err)
+	}
+
+	switch val := val.(type) {
+	case map[interface{}]interface{}:
+		for filename, params := range val {
+			res.Filename = filename.(string)
+			for paramName, paramValue := range params.(map[interface{}]interface{}) {
+				if paramName.(string) != labelsParamKey {
+					continue
+				}
+				for labelKey, labelValue := range paramValue.(map[interface{}]interface{}) {
+					res.Labels[labelKey.(string)] = labelValue.(string)
+				}
+			}
+		}
+	case interface{}:
+		res.Filename = val.(string)
+	}
+
+	*q = res
+
+	return nil
+}
+
 // LoadQueries loads the queries from the QueryFiles
 func (d *DbConfig) LoadQueries() error {
 	queries := make([]Query, 0)
 
-	for _, queryFile := range d.QueryFiles {
-		fp, err := os.Open(queryFile)
-		if err != nil {
-			return fmt.Errorf("could not open file: %v", err)
-		}
-
-		fileQueries := make(map[string]Query)
-		decoder := yaml.NewDecoder(fp)
-		if err := decoder.Decode(&fileQueries); err != nil {
-			fp.Close()
-			return fmt.Errorf("could not decode %q: %v", queryFile, err)
-		}
-
-		for name, query := range fileQueries {
-			query.Name = name
-			queries = append(queries, query)
-		}
-		fp.Close()
-	}
+	//for _, queryFile := range d.QueryFiles {
+	//	fp, err := os.Open(queryFile)
+	//	if err != nil {
+	//		return fmt.Errorf("could not open file: %v", err)
+	//	}
+	//
+	//	fileQueries := make(map[string]Query)
+	//	decoder := yaml.NewDecoder(fp)
+	//	if err := decoder.Decode(&fileQueries); err != nil {
+	//		fp.Close()
+	//		return fmt.Errorf("could not decode %q: %v", queryFile, err)
+	//	}
+	//
+	//	for name, query := range fileQueries {
+	//		query.Name = name
+	//		queries = append(queries, query)
+	//	}
+	//	fp.Close()
+	//}
 	d.queries = queries
 
 	return nil
