@@ -93,7 +93,7 @@ loop:
 		case syscall.SIGTERM:
 			break loop
 		case syscall.SIGHUP:
-			log.Printf("reloading config. to be implemented")
+			//TODO: reload config
 		default:
 			log.Printf("received signal: %v", sig)
 		}
@@ -103,5 +103,4 @@ loop:
 	}
 
 	close(sigs)
-	os.Exit(1)
 }
